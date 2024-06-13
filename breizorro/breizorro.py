@@ -116,6 +116,13 @@ def remove_regions(mask_image, regs, wcs):
             reg = reg.to_pixel(wcs)
         mask_image[reg.to_mask().to_image(mask_image.shape) != 0] = 0
 
+def extract_regions(mask_image, regs, wcs):
+    subtract_image = mask_image.copy()
+    for reg in regs:
+        if hasattr(reg, 'to_pixel'):
+            reg = reg.to_pixel(wcs)
+        subtract_image[reg.to_mask().to_image(mask_image.shape) != 0] = 0
+    mask_image -= subtract_image
 
 def main():
     LOGGER.info("Welcome to breizorro")
@@ -141,6 +148,8 @@ def main():
                         help='Merge in one or more masks or region files')
     parser.add_argument('--subtract', dest='subtract', metavar="MASK(s)|REG(s)", nargs='+',
                         help='Subract one or more masks or region files')
+    parser.add_argument('--extract', dest='extract', metavar="MASK(s)|REG(s)", nargs='+',
+                        help='Extract islands that exist only within one or more regions')
 
     parser.add_argument('--number-islands', dest='islands', action='store_true', default=False,
                         help='Number the islands detected (default=do not number islands)')
@@ -264,6 +273,18 @@ def main():
             else:
                 LOGGER.info(f"Subtracting {len(regs)} regions from {subtract}")
                 remove_regions(mask_image, regs, wcs)
+
+    if args.extract:
+        for extract in args.extract:
+            fits, regs = load_fits_or_region(extract)
+            # This will never be a fits file
+            if fits:
+                LOGGER.info(f"treating {extract} as a FITS mask")
+                mask_image[fits[0] == 0] = 0
+                LOGGER.info("Extracted from mask")
+            else:
+                LOGGER.info(f"Extracting {len(regs)} regions from {extract}")
+                extract_regions(mask_image, regs, wcs)
 
     if args.islands:
         LOGGER.info(f"(Re)numbering islands")
